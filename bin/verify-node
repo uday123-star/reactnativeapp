@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+source ~/.nvm/nvm.sh
+source ./bin/colors
+
+NODE_V=$(<.nvmrc);
+ERROR_MSG="${RED}Wrong version of node.js. Please use $NODE_V ${NC}"
+SUCCESS_MSG="${GREEN}Success, node $NODE_V detected${NC}"
+
+if $(type nvm > /dev/null); then
+  nvm use 16
+fi
+
+[ $NODE_V !=  $(node -v) ] && echo -e "$ERROR_MSG" && exit 1 || echo -e "$SUCCESS_MSG"

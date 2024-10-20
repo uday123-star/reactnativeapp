@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+
+source ./bin/colors
+
+CONFIGURATION_OPTIONS_URL=https://gitlab.tuk2.intelius.com/classmates/mobile-app/-/blob/main/Readme.md#required-options
+FILE=$(cat .env)
+
+IS_MISCONFIGURED=0
+
+echo -e "Verifying .env file"
+
+for LINE in $FILE
+do
+  if [[ $LINE == *"DEFAULT_VALUE"* ]] ; then
+    echo $LINE
+    IS_MISCONFIGURED=1
+  fi
+done
+
+if [ $IS_MISCONFIGURED == 1 ] ; then
+  echo -e "${RED}Environment is not properly configured. Detected DEFAULT_VALUE in the .env file. Please configure the environment.${NC}"
+  echo -e "See $CONFIGURATION_OPTIONS_URL for help"
+  exit 1
+else
+  echo -e "${GREEN}Environment is properly configured. Continuing.${NC}"
+fi

@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+
+# This script stubs the .env file.
+# .env files are plain text, key=value pairs
+# that get loaded at runtime.
+
+# To use in gitlab-ci.yml :
+# Declare all values as variables, in https://gitlab.tuk2.intelius.com/classmates/mobile-app/-/settings/ci_cd
+# When the pipeline job installs dependencies, This
+# script will run first. Assuming we have all appropriate
+# vars defined in ci_cd settings, this script
+# should write a configured .env file.
+
+# Bypass this script if running in a gitlab CI pipeline
+# Expected use is for local dev only.
+if [ $CI ]; then
+  echo "Gitlab detected. Skipping write-env."
+  exit 0;
+fi
+
+
+echo "Begin write-env."
+
+source ./bin/colors
+
+OVERWRITING="${RED}Writing new .env file. Don't forget to set values!${NC}"
+
+# File that we're writing to
+TargetFile=.env
+
+# Declare key=values here.
+# Format: KEY="${EXISTING_ENV_VALUE:-defaultvalue}"
+API_URL="${API_URL:-DEFAULT_VALUE}"
+
+# # Contents of the file
+# ENV_FILE_CONTENTS=$(cat << EOM
+# API_URL=$API_URL
+# TEST_USER_EMAIL=$TEST_USER_EMAIL
+# GOOGLE_SERVICES_ANDROID=$GOOGLE_SERVICES_ANDROID
+# GOOGLE_SERVICES_IOS=$GOOGLE_SERVICES_IOS
+# EOM
+# )
+
+#   # If we have the $EAS_BUILD ENV set then
+#   # we are in the EXPO build pipeline. We
+#   # muse force writing the .env file here.
+# if [[ ! -f $TargetFile ]] || [ $EAS_BUILD ]
+# then
+#   echo -e $OVERWRITING
+#   echo "$ENV_FILE_CONTENTS" > $TargetFile
+# else
+#   read -t 10 -p "$(echo -e $TargetFile already exists, do you want to overwrite it ${RED}[Ny]${NC}?)" yn
+#   case $yn in
+#     [Yy]* ) echo -e $OVERWRITING; echo "$ENV_FILE_CONTENTS" > $TargetFile;;
+#     * ) echo "Skipping";;
+#   esac
+# fi
+
+cat $TargetFile
+
+if [[ ${GOOGLE_SERVICES_ANDROID+x} && ${GOOGLE_SERVICES_IOS+x} ]]
+then
+  GOOGLE_SCRIPT="./bin/google-services"
+  echo "Generating google services config files"
+  (exec "$GOOGLE_SCRIPT")
+fi
+
+echo 'Finished write-env.';

@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -x
+bash bin/google-services
+set +x

@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+NC='\033[0m' # No Color
+
+# example useage ::
+# echo -e "${RED}Environment is not properly configured. Detected DEFAULT_VALUE in the .env file. Please configure the environment.${NC}"

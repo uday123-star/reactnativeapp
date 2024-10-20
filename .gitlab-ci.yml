@@ -1,0 +1,81 @@
+include:
+  - template: Jobs/SAST.gitlab-ci.yml
+
+image: node:16.20
+
+stages:
+  - lint
+  - test
+  - build
+
+.prepare: &prepare
+  before_script:
+    - node --version
+    - yarn --version
+    - echo "begin installing deps…"
+    - yarn
+
+.prebuild: &prebuild
+  stage: build
+  before_script:
+    - node --version
+    - yarn --version
+    - echo "begin installing deps…"
+    - yarn
+    - yarn global add eas-cli cross-env
+    # - yarn run expo:login -u "$EXPO_USERNAME" -p "$EXPO_PASSWORD"
+    - bash bin/google-services --force
+  rules:
+    - if: $CI_COMMIT_TAG
+      when: manual
+    - if: ($CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE == "schedule")
+      when: always
+
+lint:
+  <<: *prepare
+  stage: lint
+  script:
+    - yarn lint:nofix
+    - echo 'done'.
+
+
+semgrep-sast:
+  artifacts:
+    paths: [gl-sast-report.json]  
+  allow_failure: true
+
+
+ios build:
+  <<: *prebuild
+  script:
+    - eas build -p ios --profile production --auto-submit --non-interactive
+    - echo "notify slack"
+    - |
+      [[ "$CI_PIPELINE_SOURCE" == "schedule" ]] && Message="The nightly" || Message="An automated"
+    - |
+      curl --location --request POST 'https://hooks.slack.com/workflows/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' \
+      --header 'Content-Type: text/plain' \
+      --data-raw '{
+        "pipeline": "'"$CI_PIPELINE_URL"'",
+        "platform": "IOS",
+        "trigger": "'"$Message"'",
+        "job": "'"$CI_JOB_URL"'"
+      }'
+    - cross-env EAS_NO_VCS=1 EAS_PROJECT_ROOT=.. EAS_CI_BUILD=1 APP_ENV="$APP_ENV" API_URL="$API_URL" GOOGLE_SERVICES_ANDROID="$GOOGLE_SERVICES_ANDROID" GOOGLE_SERVICES_IOS="$GOOGLE_SERVICES_IOS" eas build -p ios --non-interactive --profile=production
+
+android build:
+  <<: *prebuild
+  script:
+    - echo "notify slack"
+    - |
+      [[ "$CI_PIPELINE_SOURCE" == "schedule" ]] && Message="The nightly" || Message="An automated"
+    - |
+      curl --location --request POST 'https://hooks.slack.com/workflows/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' \
+      --header 'Content-Type: text/plain' \
+      --data-raw '{
+        "pipeline": "'"$CI_PIPELINE_URL"'",
+        "platform": "Android",
+        "trigger": "'"$Message"'",
+        "job": "'"$CI_JOB_URL"'"
+      }'
+    - cross-env EAS_NO_VCS=1 EAS_PROJECT_ROOT=.. EAS_CI_BUILD=1 APP_ENV="$APP_ENV" API_URL="$API_URL" GOOGLE_SERVICES_ANDROID="$GOOGLE_SERVICES_ANDROID" GOOGLE_SERVICES_IOS="$GOOGLE_SERVICES_IOS" eas build -p android --non-interactive --profile=production

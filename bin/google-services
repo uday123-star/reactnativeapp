@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+
+usage() {
+  cat <<EOF
+  Usage: $0 <[options]>
+  Options:
+    -e    | --export          Export files to base64
+    -a    | --android         Android Configutarion file, base64 enconded
+    -i    | --ios             iOS Configuration file, base64 enconded
+    -f    | --force           Force dummy empty files
+    -h    | --help            Show this message
+EOF
+}
+
+while getopts ":he-:" opt; do
+  case $opt in
+    e)
+      EXPORT=1 ;;
+    a)
+      GOOGLE_SERVICES_ANDROID="$OPTARG" ;;
+    i)
+      GOOGLE_SERVICES_IOS="$OPTARG" ;;
+    f)
+      FORCE=1 ;;
+    h) usage && exit 1 ;;
+    -) [ $OPTIND -ge 1 ] && optind=$(expr $OPTIND - 1 ) || optind=$OPTIND
+        eval OPTION="\$$optind"
+        OPTARG=$(echo $OPTION | cut -d'=' -f2)
+        OPTION=$(echo $OPTION | cut -d'=' -f1)
+        case $OPTION in
+            --export) EXPORT=1 ;;
+            --android) GOOGLE_SERVICES_ANDROID="$OPTARG" ;;
+            --ios) GOOGLE_SERVICES_IOS="$OPTARG" ;;
+            --force) FORCE=1 ;;
+            --help) usage && exit 1 ;;
+        esac
+      OPTIND=1
+      shift ;;
+  esac
+done
+
+if [[ $FORCE = 1 ]]
+then
+  echo "Dummy files"
+  touch google-services.json
+  touch GoogleService-Info.plist
+  echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\"><plist version=\"1.0\"><dict><key>DUMMY_KEY</key><string>DummyValue</string></dict></plist>" >> GoogleService-Info.plist
+  echo "Dummy files generated"
+else
+  if [[ $EXPORT = 1 ]]
+  then
+    ANDROID_CONFIG=./google-services.json
+    IOS_CONFIG=./GoogleService-Info.plist
+    if test -f "$ANDROID_CONFIG"; then
+      ANDROID_CONFIG_BASE64="base64 google-services.json"
+      OUTPUT_ANDROID=$(eval "$ANDROID_CONFIG_BASE64")
+      echo "GOOGLE_SERVICES_ANDROID=$OUTPUT_ANDROID"
+    else
+      echo "Android config file does not exists."
+    fi
+    if test -f "$IOS_CONFIG"; then
+      IOS_CONFIG_BASE64="base64 GoogleService-Info.plist"
+      OUTPUT_IOS=$(eval "$IOS_CONFIG_BASE64")
+      echo "GOOGLE_SERVICES_IOS=$OUTPUT_IOS"
+    else
+      echo "iOS config file does not exists."
+    fi
+  else
+    if [[ ${GOOGLE_SERVICES_ANDROID+x} && ${GOOGLE_SERVICES_IOS+x} ]]
+    then
+      echo "The env variables already exists"
+      echo $GOOGLE_SERVICES_ANDROID | base64 --decode > google-services.json
+      echo $GOOGLE_SERVICES_IOS | base64 --decode > GoogleService-Info.plist
+    else
+      if [ -f .env ]
+      then
+        echo "The env variables do not exists"
+        export $(cat .env | sed 's/#.*//g' | xargs)
+        echo $GOOGLE_SERVICES_ANDROID | base64 --decode > google-services.json
+        echo $GOOGLE_SERVICES_IOS | base64 --decode > GoogleService-Info.plist
+      fi
+    fi
+    echo "<===========google-services.json===========>"
+    cat google-services.json
+    echo "<===========GoogleService-Info.plist===========>"
+    cat GoogleService-Info.plist
+    echo "<===========END===========>"
+  fi
+fi

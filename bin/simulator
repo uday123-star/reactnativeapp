@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+TMPFILE=$(mktemp)
+
+if ! [ -x "$(command -v brew)" ]; then
+  echo "Installing brew"
+  bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+fi
+
+if ! [ -x "$(command -v jq)" ]; then
+  echo "Installing jq using brew"
+  brew install jq
+fi
+
+if ! [ -x "$(command -v dialog)" ]; then
+  echo "Installing dialog using brew"
+  brew install dialog
+fi
+
+if ! [ -x "$(command -v adb)" ] || ! [ -x "$(command -v emulator)" ]; then
+  export PATH=$PATH:$HOME/Library/Android/sdk/platform-tools/
+  export PATH=$PATH:$HOME/Library/Android/sdk/emulator/
+  export PATH=$PATH:$HOME/Library/Android/sdk/cmdline-tools/latest/bin/
+  export ANDROID_SDK_ROOT=$HOME/Library/Android/sdk
+fi
+
+if ! [ -x "$(xcode-select -p)" ]; then
+  xcode-select --install
+fi
+
+dialog --menu "Select your device type:" 10 30 5 \
+  1 iPhone \
+  2 iPad \
+  3 Android 2>$TMPFILE
+RESULTDEVICE=$(cat $TMPFILE)
+
+DEVICETYPE=""
+case $RESULTDEVICE in
+    1) DEVICETYPE="iPhone";;
+    2) DEVICETYPE="iPad";;
+    3) DEVICETYPE="Android";;
+    *) DEVICETYPE="";;
+esac
+
+if [[ ! -z "$DEVICETYPE" ]];
+then
+  DIALOG='dialog --menu "Choose your simulator:" 30 80 5'
+
+  ITER=1;
+  DATA=()
+  if [[ $DEVICETYPE == "Android" ]];
+  then
+    for device in $(emulator -list-avds); do
+      DIALOG="$DIALOG $ITER \"@$device\""
+      DATA+=($device)
+      ITER=$(expr $ITER + 1)
+    done
+  else
+    simulators=$(xcrun simctl list -j devices)
+    for device in $(jq -S -c -M -r ".devices | map(.[]) | .[] | select(.name|startswith(\"$DEVICETYPE\")) | @base64" <<< $simulators); do
+      _jq() {
+        echo ${device} | base64 --decode | jq -r ${1}
+      }
+      name=$(_jq '.name')
+      udid=$(_jq '.udid')
+      DIALOG="$DIALOG $ITER \"$name: $udid\""
+      DATA+=($udid)
+      ITER=$(expr $ITER + 1)
+    done
+  fi
+  DIALOG="$DIALOG 2>$TMPFILE"
+  eval $DIALOG
+  RESULT=$(cat $TMPFILE)
+  if [[ ! -z "$RESULT" ]]
+  then
+    UDID=${DATA[$RESULT - 1]}
+    COMMAND='echo "This is not working, try again."'
+    if [[ $DEVICETYPE == 'Android' ]];
+    then
+      set -m
+      COMMAND="adb start-server; nohup emulator -avd $UDID &"
+    else
+      xcrun simctl shutdown all
+      COMMAND="open -a Simulator --args -CurrentDeviceUDID $UDID"
+    fi
+    eval $COMMAND
+  else
+    echo "No device has been chosen"
+  fi
+else
+  echo "Cancelled by user"
+fi
+rm $TMPFILE
